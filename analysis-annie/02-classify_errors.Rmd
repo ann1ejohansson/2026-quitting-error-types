@@ -9,3 +9,87 @@ output:
   html_document:
     df_print: paged
 ---
+
+```{r}
+load("~/research-collaboration/data/2026-quitting-error-types/set-predictions/results_2026_02-23/rdata/set_preds.RData")
+```
+
+```{r}
+set_preds %>% 
+  dplyr::group_by(error_type) %>%
+  dplyr::summarise(
+    n = dplyr::n(),
+    mean_rt = mean(response_in_milliseconds, na.rm = TRUE),
+    median_rt = median(response_in_milliseconds, na.rm = TRUE),
+    sd_rt = sd(response_in_milliseconds, na.rm = TRUE),
+    q25_rt = quantile(response_in_milliseconds, probs = 0.25, na.rm = TRUE),
+    q75_rt = quantile(response_in_milliseconds, probs = 0.75, na.rm = TRUE),
+    .groups = "drop"
+  )
+```
+
+
+```{r}
+plot_data <- set_preds %>%
+  filter(!predicted_cause %in% c("zero", "typo")) %>%
+  mutate(
+    rain_group = if_else(
+      error_type == "has_cause",
+      as.character(predicted_cause_filtered),
+      as.character(error_type)
+    )
+  )
+
+library(ggdist)
+ggplot(plot_data, aes(y = error_type, x = response_in_milliseconds)) + 
+  stat_halfeye(aes(fill = error_type,
+                   group = error_type), 
+               adjust = 0.7, 
+               width = 0.6, 
+               .width = 0, 
+               justification = 0, 
+               point_colour = NA, 
+               color = NA,
+               alpha = 0.5) + 
+  geom_boxplot(aes(group = error_type, 
+                   color = error_type), 
+               width = 0.15, 
+               outliers = FALSE, 
+               fill = "white",
+               show.legend = FALSE) +
+  scale_fill_viridis_d() + 
+  scale_color_viridis_d() +
+  labs(title = "Response Time Distribution by Error Type",
+       x = "Response Time (ms)",
+       y = NULL) +
+  theme_bw()
+
+# separate density by causes
+ggplot(plot_data,
+       aes(y = error_type,
+           x = response_in_milliseconds)) +
+  stat_halfeye(
+    aes(fill = error_type,
+        group = rain_group),
+    adjust = 0.7,
+    width = 0.6, 
+    .width = 0, 
+    justification = 0,
+    alpha = 0.3,
+    color = NA
+  ) +
+  geom_boxplot(
+    aes(color = error_type),
+    width = 0.15,
+    outliers = FALSE,
+    fill = "white",
+    show.legend = FALSE) +
+  scale_fill_viridis_d() +
+  scale_color_viridis_d() +
+  labs(title = "Response Time Distribution by Error Type",
+       x = "Response Time (ms)",
+       y = NULL) +
+  theme_bw()
+
+```
+

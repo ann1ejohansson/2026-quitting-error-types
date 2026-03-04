@@ -81,7 +81,7 @@ rm(duplicate_json, space_after_q_v)
 # clean log data ----
 logs <- logs %>%
   # join item info
-  left_join(items %>% dplyr::select(id, question_clean, first, second),
+  left_join(items %>% select(id, question_clean, first, second),
             by = c("item_id" = "id")) %>%
   # training set
   filter(user_id %in% id_train) %>%
@@ -177,7 +177,7 @@ total_n <- logs %>%
 
 totals <- logs %>%
   count(question_clean, response) %>%
-  left_join(rt %>% dplyr::select(-n), by = c("question_clean", "response")) %>%
+  left_join(rt %>% select(-n), by = c("question_clean", "response")) %>%
   pivot_wider(
     names_from = response,
     values_from = c(n, rt_mean, rt_sd),
@@ -185,7 +185,7 @@ totals <- logs %>%
   ) %>%
   mutate(error_rate = n_error / (n_cor + n_error)) %>%
   left_join(total_n, by = "question_clean") %>%
-  dplyr::select(question_clean, total_n, n_cor, n_error, n_qm, n_late, error_rate,
+  select(question_clean, total_n, n_cor, n_error, n_qm, n_late, error_rate,
                 rt_mean_cor, rt_mean_error, rt_mean_qm, rt_sd_cor, rt_sd_error, rt_sd_qm,
                 rt_totalmean, rt_totalsd)
 

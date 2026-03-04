@@ -9,13 +9,13 @@ packages <- c(
   "lubridate",
   "slider",
   "forcats",
-  "dplyr",
   "tidyr",
   "kableExtra",
   "tidytext",
   "stringr",
   "zoo",
   "DescTools",
+  "dplyr",
 
   # plotting tools
   "ggplot2",
@@ -30,7 +30,10 @@ packages <- c(
   "lme4",
   "lmtest",
   "car",
-  "merTools"
+  "merTools",
+
+  # misc
+  "conflicted"
 )
 
 installed <- packages %in% rownames(installed.packages())
@@ -41,16 +44,32 @@ if (any(!installed)) {
 
 invisible(lapply(packages, library, character.only = TRUE))
 
+## dplyr::select() conflicts with MASS::select()
+conflict_prefer("select", "dplyr")
+
 
 # set working dir ----
 here::i_am("analysis-annie/scripts/00-setup_environment.R")
 
 rm(installed, packages)
 
-# folders
-path_to_models <- here("analysis-annie/models")
-path_to_figures <- here("analysis-annie/figures")
-path_to_tables <- here("analysis-annie/tables")
+# directories
+folders <- c("models", "figures", "tables")
+
+# Loop through each folder
+for (folder in folders) {
+  # Get the full path to the folder
+  folder_path <- here("analysis-annie", folder)
+
+  # Check if the folder exists
+  if (!dir.exists(folder_path)) {
+    # Create the folder if it does not exist
+    dir.create(folder_path)
+    message(paste("Created dir:", folder))
+  } else {
+    message(paste("Dir already exists:", folder))
+  }
+}
 
 
 # plotting tools ----

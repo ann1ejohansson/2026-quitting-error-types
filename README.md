@@ -6,8 +6,7 @@
 this will be a replication and extension of the quitting effect (seq. errors -> quitting), 
 interacted with error type, and explored across math garden and memory lab datasets. 
 
-
-### analysis plan
+### analysis ideas
 
 model the probability of a state transition, given: 
 
@@ -27,11 +26,8 @@ I start by exploring (a training subset of) multiplication data from 2021 to 202
 -  can errors (cognitive vs. non-cognitive) be modeled as a state?  
 -  rt distributions over set predictions 
 -  indicators: how to classify cognitive / non-cognitive error types?
+-  item characteristics and error systematicity
 
-### questions 
-
- -  does the markov model need to be hidden?  
- -  correct definition of delta?  
  
  
  
