@@ -5,6 +5,13 @@
 # Session Data files
 .RData
 .RDataTmp
+.rdata
+.Rdata
+.rds
+.RDS
+
+# cache files
+.nb.html
 
 # User-specific files
 .Ruserdata
