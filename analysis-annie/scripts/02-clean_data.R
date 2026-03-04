@@ -1,3 +1,19 @@
+# exclusion parameters
+min_item_count <- 200
+min_play_count <- 200
+
+if (!exists("logs")) {
+  stop("run script 01-load-data.R first")
+}
+
+if (!exists("min_item_count")) {
+  stop("need to define min_item_count")
+}
+
+if (!exists("min_play_count")) {
+  stop("need to define min_play_count")
+}
+
 # clean item data ----
 items <- items %>%
   # clean JSON string
@@ -58,26 +74,14 @@ space_after_q_v <- items %>%
 items <- items %>%
   mutate(space_after_q = id %in% space_after_q_v)
 
-items <- items %>%
-  #mutate(question_clean = str_extract(question, "\\b\\d+,?\\d* x \\d+\\b")) %>%
-  mutate(question_clean = str_extract(question, "\\b\\d+,?\\d* x \\b\\d+,?\\d*")) %>%
-  mutate(question_clean = gsub(pattern = ",", replacement = ".", x = question_clean, fixed = TRUE)) %>%
-  separate(question_clean, into = c("first", "second"),
-           sep = " x ", convert = TRUE, remove = FALSE) %>%
-  mutate(first = as.numeric(first),
-         second = as.numeric(second))
-
-items <- as_tibble(items)
+save(list = c("duplicate_json", "space_after_q_v"),
+     file = "~/research-collaboration/data/2026-quitting-error-types/data-checks/check-json-strings.RData")
+rm(duplicate_json, space_after_q_v)
 
 # clean log data ----
 logs <- logs %>%
   # join item info
-  left_join(items %>%
-              select(id, mirror_item_id, question_clean, first, second)
-            # %>%
-            #   # select only single-digit items
-            #   filter(first %in% c(0:9) & second %in% c(0:9))
-            ,
+  left_join(items %>% dplyr::select(id, question_clean, first, second),
             by = c("item_id" = "id")) %>%
   # training set
   filter(user_id %in% id_train) %>%
@@ -102,24 +106,24 @@ id_strings <- logs %>%
 
 logs <- logs %>%
   left_join(id_strings, by = "question_clean")
+rm(id_strings)
 
 # data exclusion ----
 n_rem_grade <- logs %>%
   filter(grade < 3) %>%
   count()
 
-n_rem_items <- 200
 rem_items <- logs %>%
   group_by(question_clean) %>%
   count() %>%
-  filter(n < n_rem_items) %>%
+  filter(n < min_item_count) %>%
   pull(question_clean)
 
-n_rem_user <- 200
+
 rem_users <- logs %>%
   group_by(user_id) %>%
   count() %>%
-  filter(n < n_rem_user) %>%
+  filter(n < min_play_count) %>%
   pull(user_id)
 
 logs <- logs %>%
@@ -137,3 +141,98 @@ final_n <- data.frame(n_obs = nrow(logs),
                       n_items = length(unique(logs$question_clean)),
                       n_ind = length(unique(logs$user_id)))
 save(final_n, file = here("analysis-annie/tables/final_n.R"))
+
+cat("n. observations = ", nrow(logs), "\n")
+cat("n. errors = ", nrow(logs %>% filter(response == "error")), "\n")
+cat("n. individuals = ", length(unique(logs$user_id)), "\n")
+cat("n. items = ", length(unique(logs$question_clean)))
+
+rm(rem_items, rem_users, n_rem_grade)
+
+# create exploration dataframes -----
+# rt variables - grouped by question
+logs <- logs %>%
+  group_by(question_clean) %>%
+  mutate(rt_NA = ifelse(response == "late", NA, response_in_milliseconds),
+         rt_median = median(rt_NA, na.rm = TRUE)) %>% # remove late responses from median rt calculation
+  ungroup() %>%
+  mutate(rt_fastslow = ifelse(rt_NA < rt_median, "fast", "slow"))
+
+rt <- logs %>%
+  # overall
+  group_by(question_clean, single_digit) %>%
+  mutate(rt_mean = mean(rt_NA, na.rm = TRUE),
+         rt_sd = sd(rt_NA, na.rm = TRUE)) %>%
+  ungroup() %>%
+  # per response type
+  group_by(question_clean, single_digit, response) %>%
+  summarise(n = n(),
+            rt_totalmean = unique(rt_mean),
+            rt_totalsd = unique(rt_sd),
+            rt_mean = mean(rt_NA, na.rm = TRUE),
+            rt_sd = sd(rt_NA, na.rm = TRUE))
+
+total_n <- logs %>%
+  count(question_clean, name = "total_n")
+
+totals <- logs %>%
+  count(question_clean, response) %>%
+  left_join(rt %>% dplyr::select(-n), by = c("question_clean", "response")) %>%
+  pivot_wider(
+    names_from = response,
+    values_from = c(n, rt_mean, rt_sd),
+    names_glue = "{.value}_{response}"
+  ) %>%
+  mutate(error_rate = n_error / (n_cor + n_error)) %>%
+  left_join(total_n, by = "question_clean") %>%
+  dplyr::select(question_clean, total_n, n_cor, n_error, n_qm, n_late, error_rate,
+                rt_mean_cor, rt_mean_error, rt_mean_qm, rt_sd_cor, rt_sd_error, rt_sd_qm,
+                rt_totalmean, rt_totalsd)
+
+
+totals <- totals %>%
+  separate(question_clean, into = c("first", "second"),
+           sep = " x ", convert = TRUE, remove = FALSE) %>%
+  mutate(first  = if_else(first %% 1 == 0, round(first, 1), first),
+         second = if_else(second %% 1 == 0, round(second, 1), second),
+         single_digit = (first %in% c(0:9) & second %in% c(0:9)))
+
+# all responses per item
+resp <- logs %>%
+  group_by(answer_id, question_clean,  answer, first, second, response, id_string) %>%
+  summarise(n = n(),
+            rt_mean_resp = mean(rt_NA, na.rm = T),
+            rt_sd_resp = sd(rt_NA, na.rm = T),
+            n_fast = sum(rt_fastslow == "fast"),
+            n_slow = sum(rt_fastslow == "slow"))
+
+resp_fastslow <- logs %>%
+  group_by(answer_id, question_clean,  answer, first, second, response, id_string, rt_fastslow) %>%
+  summarise(n = n(),
+            rt_mean_resp = mean(rt_NA, na.rm = T),
+            rt_sd_resp = sd(rt_NA, na.rm = T))
+# resp <- logs %>%
+#   group_by(question_clean, answer, first, second, answer_id, response, id_string) %>%
+#   count(name = "n") %>%
+#   ungroup() %>%
+#   mutate(first = as.numeric(first),
+#          second = as.numeric(second)) %>%
+#   select(answer_id, id_string, response, question_clean, answer, first, second, n)
+
+# # add totals to resp table
+resp <- resp %>%
+  left_join(totals,
+            by = c("question_clean", "first", "second")) %>%
+  mutate(filter_error = 1*(response == "error"))
+
+resp_fastslow <- resp_fastslow %>%
+  left_join(totals,
+            by = c("question_clean", "first", "second"))
+
+resp <- resp %>%
+  mutate(filter_error = (response == "error"))
+
+resp_fastslow <- resp_fastslow %>%
+  mutate(filter_error = (response == "error"))
+
+rm(total_n, final_n, min_item_count, min_play_count)

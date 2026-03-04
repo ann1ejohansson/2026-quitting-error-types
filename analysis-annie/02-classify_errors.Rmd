@@ -1,0 +1,11 @@
+---
+title: "project: error types & quitting"
+subtitle: "classify cognitive and non-cognitive errors"
+output:
+  html_notebook:
+    theme: yeti
+    toc: true
+    toc_depth: 4
+  html_document:
+    df_print: paged
+---
