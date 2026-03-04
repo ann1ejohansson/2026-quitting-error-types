@@ -17,6 +17,8 @@ model the probability of a state transition, given:
  -  context-specific covariates (home/school, domain)  
  -  surprise (delta)  
 
+where states are defined by engagement (e.g. on-task / off-task; persisting / soft-quitting).
+
 ### data
 
 I start by exploring (a training subset of) multiplication data from 2021 to 2024.  
