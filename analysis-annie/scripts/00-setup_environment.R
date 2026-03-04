@@ -44,8 +44,9 @@ if (any(!installed)) {
 
 invisible(lapply(packages, library, character.only = TRUE))
 
-## dplyr::select() conflicts with MASS::select()
-conflict_prefer("select", "dplyr")
+## conflicts
+conflicts_prefer(dplyr::select(),
+                 dplyr::filter())
 
 
 # set working dir ----

@@ -7,13 +7,25 @@ output:
     toc: true
     toc_depth: 4
   html_document:
+    theme: yeti
     df_print: paged
+css: styles.css
 ---
 
-```{r}
-source(here::here("config.R"))
+```{r setup-data, include=FALSE}
+knitr::opts_chunk$set(message = FALSE, 
+                      warning = FALSE)
+source("~/research-collaboration/2026-quitting-error-types/analysis-annie/scripts/00-setup_environment.R")
+source(here("config.R"))
 load(cfg$paths$set_preds_file)
 ```
+
+```{r}
+set_preds %>% 
+  mutate(in)
+table(set_preds$error_type)
+```
+
 
 ```{r}
 set_preds %>% 

@@ -4,8 +4,7 @@ cfg <- list(
     train_ids_file = path.expand("~/research-collaboration/2025-error-tracing/rdata/ext/id_train.RData"),
     test_ids_file = NULL,
     set_preds_file = path.expand("~/research-collaboration/data/2026-quitting-error-types/set-predictions/results_2026_02-23/rdata/set_preds.RData"),
-    check_json_strings_file = path.expand("~/research-collaboration/data/2026-quitting-error-types/data-checks/check-json-strings.RData"),
-    error_categories_dir = "analysis-annie/functions/error_categories"
+    check_json_strings_file = path.expand("~/research-collaboration/data/2026-quitting-error-types/data-checks/check-json-strings.RData")
   ),
   analysis = list(
     split = "train",

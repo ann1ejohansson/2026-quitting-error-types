@@ -1,0 +1,383 @@
+---
+title: "project: error types & quitting"
+subtitle: "exploration of item characteristics"
+output:
+  html_notebook:
+    theme: yeti
+    toc: true
+    toc_depth: 4
+  html_document:
+    theme: yeti
+    df_print: paged
+css: styles.css
+---
+
+```{r setup-data, include=FALSE}
+knitr::opts_chunk$set(message = FALSE, 
+                      warning = FALSE)
+source("~/research-collaboration/2026-quitting-error-types/analysis-annie/scripts/00-setup_environment.R")
+source(here("config.R"))
+source(here("analysis-annie/scripts/01-load_data.R"))
+source(here("analysis-annie/scripts/02-clean_data.R"))
+```
+
+## most common errors
+
+### `top_errors`
+
+-   include only incorrect responses
+-   group by answer\
+-   aggregate n per unique answer for top 10 rows per item
+
+For example, for the item `9 x 9`:
+
+```{r top-errors, include = TRUE, echo = FALSE}
+top_errors <- resp %>% 
+  filter(response != "cor") %>% 
+  group_by(question_clean) %>% 
+  arrange(question_clean, desc(n)) %>% 
+  slice_head(n = 30) %>%
+  ungroup() %>%
+  arrange(first, second, desc(n)) %>% 
+  mutate(prop_error = ifelse(response != "error", NA, n / n_error)) 
+  
+top_errors_fastslow <- resp_fastslow %>% 
+  filter(response != "cor") %>% 
+  group_by(question_clean, rt_fastslow) %>% 
+  arrange(question_clean, desc(n)) %>% 
+  slice_head(n = 60) %>%
+  ungroup() %>%
+  arrange(question_clean, first, second, desc(n)) %>% 
+  mutate(prop_error = ifelse(response != "error", NA, n / n_error)) 
+```
+
+```{r errors-top-ten-1, fig.width = 8, fig.height = 10, include = TRUE, echo = FALSE}
+top_ten_errors <- top_errors %>% 
+  filter(filter_error & single_digit) %>%
+  group_by(question_clean) %>% 
+  slice_head(n = 1) %>% 
+  arrange(desc(n)) %>%
+  ungroup() %>% 
+  slice_head(n = 10) %>%
+  mutate(line = paste0(answer_id, " (n = ", n, ")")) %>%
+  pull(line)
+```
+
+**The top 10 most common errors among single-digit multiplication are:**
+
+```{r errors-top-ten-2, include = TRUE, echo = FALSE}
+cat(top_ten_errors, sep = "\n")
+```
+
+```{r common-errors-plot, include = TRUE, echo = FALSE, fig.width = 12, fig.height=10}
+select_items <- top_errors %>% 
+  filter(single_digit & filter_error & !first %in% 0 & !second %in% 0) %>% 
+  group_by(question_clean) %>% 
+  arrange(question_clean, desc(prop_error)) %>% 
+  slice_head(n = 1) %>% 
+  arrange(desc(prop_error)) %>% 
+  filter(n > 50) %>% # same error has been recorded more than 50x
+  pull(question_clean) %>% 
+  .[1:15] # preferably a factor of 5
+
+top_errors %>% 
+  # filter single-digit, "true" error, and no zeroes in item. 
+  filter(single_digit & filter_error & !first %in% 0 & !second %in% 0) %>% 
+  group_by(question_clean) %>% 
+  arrange(question_clean, desc(prop_error)) %>% 
+  # remove gibberish long answers 
+  mutate(answer_str = as.character(answer)) %>% 
+  filter(str_length(answer_str) < 6) %>%
+  # sub selection of items
+  filter(question_clean %in% select_items) %>% 
+  arrange(question_clean, -prop_error) %>%
+  group_by(question_clean) %>% 
+  slice_head(n = 15) %>% 
+  ungroup() %>% 
+  mutate(answer = reorder_within(answer, prop_error, question_clean)) %>% 
+  ggplot(aes(answer, prop_error)) +
+  geom_bar(stat = "identity", aes(fill = response, color = response), alpha = 0.4) +
+  scale_discrete_manual(aesthetics = c("fill", "color"), values = response_colors, name = "type") +
+  labs(title = "Number of responses per error", y = "n", x = "answer") +
+  coord_flip() +
+  facet_wrap(~question_clean, scales = "free_y", ncol = 5) + 
+  scale_x_reordered() +  # clean up facet x labels
+  plot_theme
+```
+
+## entropy of error distributions
+
+To quantify how concentrated or diffuse the error distributions are for each item, I compute the **Shannon entropy** of the item-specific error distribution.
+
+For each item, the empirical distribution of incorrect answers is considered (plotted above).
+
+The entropy of an item is defined as
+
+$H = -\sum_{k=1}^{K} p_k \log p_k$
+
+-   $p_k$ denotes the proportion of errors resulting in answer $k$.
+
+-   $K$ denotes the number of distinct incorrect answers.
+
+### normalization
+
+Because the maximum possible entropy depends on $K$, raw entropy values are not directly comparable across items. The maximum entropy for an item with $K$ distinct errors is $\log(K)$, which occurs when all incorrect answers are equally likely. I therefore normalize entropy by this maximum:
+
+$H_{norm} = \frac{H}{\log(K)}$
+
+This normalized entropy takes on values between 0 and 1, where 0 indicates that all errors fall on a single answer and 1 indicates a uniform distribution over the observed error answers.
+
+### dominance
+
+For interpretation, I compute the inverse entropy measure, referred to as **dominance**:
+
+$\mathrm{dominance} = 1 - H_{norm}$
+
+High dominance values correspond to sharply peaked error distributions, where one incorrect error dominates. Low dominance values correspond to flatter distributions with many competing error answers.
+
+**note:**
+
+-   Only incorrect answers are included in the entropy calculation. *Skipped and late responses are not included*.
+
+-   Proportions (`prop_error = n / n_error`) are derived from the observed error counts for each item. Thus, probabilities used in the entropy calculation depend on relative frequencies. Indirectly, this implies that, for items with a higher total play count, these proportions are more stable, compared to items with a relatively smaller play count. Items with n \< 200 are excluded from analysis.
+
+
+```{r entropy-calculate, include = TRUE}
+errors <- resp %>% 
+  filter(filter_error) %>% 
+  arrange(first, second, desc(n)) %>% 
+  mutate(prop_error = ifelse(response != "error", NA, n / n_error)) 
+
+entropy <- errors %>%
+  filter(filter_error) %>%
+  group_by(question_clean) %>%
+  summarise(
+    single_digit = unique(single_digit),
+    first = unique(first), 
+    second = unique(second), 
+    H = -sum(prop_error * log(prop_error), na.rm = TRUE),
+    K = n(),
+    H_norm = H / log(K),
+    dominance = 1 - H_norm,
+    .groups = "drop"
+  )
+
+# highest dominance items 
+entropy %>% 
+  filter(single_digit) %>% 
+  arrange(-dominance) %>% 
+  slice_head(n = 12) %>% 
+  dplyr::select(question_clean, H, K, H_norm, dominance)
+```
+
+```{r entropy-join-item-info, }
+entropy <- entropy %>% 
+  left_join(items %>% dplyr::select(question_clean, rating), by = "question_clean") %>%
+  left_join(totals %>% dplyr::select(question_clean, n_qm, n_late, n_error), by = "question_clean") %>% 
+  # remove duplicates
+  distinct(question_clean, .keep_all = TRUE)
+```
+
+```{r entropy-plot, include = TRUE, echo = FALSE, fig.width = 10, fig.height=6}
+entropy_hist <- entropy %>% 
+  ggplot() +
+  geom_histogram(aes(x = dominance, color = single_digit, fill = single_digit), 
+                 bins = 50, 
+                 alpha = 0.6) +
+  geom_histogram(data = entropy, 
+                 aes(x = dominance, color = single_digit, fill = single_digit),
+                 bins = 50, 
+                 alpha = 0.6) +
+  labs(title = "Histogram of Item Dominance",
+       x = "Dominance (Inverse Entropy)", 
+       subtitle = "Higher values = more peaked distribution",
+       color = "single-digit", 
+       fill = "single-digit") +
+  scale_color_viridis_d(option = "magma", begin = 0.8, end = 0.4) +
+  scale_fill_viridis_d(option = "magma", begin = 0.8, end = 0.4) +
+  plot_theme
+
+# entropy per item, single-digit multiplication
+plot_entropy_singledigit <- entropy %>% 
+  filter(first != 0 & second != 0 & single_digit) %>% 
+  ggplot(aes(first, second, fill = dominance)) +
+  geom_tile(color = "white", linewidth = 0.3) +
+  #geom_text(aes(label = n), color = "white", size = 3) +
+  scale_x_continuous(breaks = 0:9, name = "First operand") +
+  scale_y_reverse(breaks = 0:9, name = "Second operand") +
+  scale_fill_viridis_c(option = "rocket", end = 0.05, begin = 0.9, name = "n") +
+  coord_equal() +
+  labs(title = "dominance",
+  subtitle = "single-digit multiplication items",
+  caption = "0 table is removed; these have very high dominance values (>0.7)") +
+  theme_minimal(base_size = 12) +
+  theme(
+    panel.grid = element_blank(),
+    axis.ticks = element_blank(),
+    plot.title = element_text(hjust = 0, face = "bold")
+  )
+
+plot_grid(entropy_hist, plot_entropy_singledigit, rel_widths = c(0.8, 1))
+```
+
+
+Looking at response distributions for high- and low-entropy items:
+
+### plot individual error distributions
+
+```{r entropy-ind-items-plot, include = TRUE, echo = FALSE, fig.width=12, fig.height=6}
+source(here("analysis-annie/functions/entropy-functions.R"))
+plot_high_dom <- plot_entropy_items(
+  only_single_digit = TRUE,
+  n_items = 6,
+  entropy, top_errors, response_colors,
+  decreasing = TRUE,
+  subtitle_text = "Highest dominance items"
+)
+
+plot_low_dom <- plot_entropy_items(
+  only_single_digit = TRUE,
+  n_items = 6,
+  entropy, top_errors, response_colors,
+  decreasing = FALSE,
+  subtitle_text = "Lowest dominance items"
+)
+
+plot_grid(plot_high_dom, plot_low_dom)
+```
+
+### entropy and item rating
+
+Here I am looking at the relationship between entropy and item rating.
+
+**Some observations:**
+
+-   There is a clear positive association between rating and entropy: items with more dominance (more peaked distributions) tend to have lower rating estimates. In short, more difficult items elicit more structured error distrubtions.
+    -   **interpretation:** errors on easier items are often driven by a small number of salient, rule-based misconceptions which leads to strongly concentrated error distributions. because these items are otherwise easy, errors are rare but when they do occur, they tend to collapse onto a single dominant incorrect response. in contrast, more difficult items admit a larger space of plausible but incorrect strategies. this does not imply that difficult items are less informative, rather that no single erroneous procedure dominates across learners.
+-   There a positive association between the absolute number of incorrect responses and dominance: items with higher dominance tend to accumulate a larger number of errors overall.
+    -   interpretation: this likely reflects the adaptivity of the system. easier items are played more, and these also show higher dominance.
+
+```{r entropy-rat-plot, include=TRUE, echo=FALSE, fig.width=10, fig.height=6, warning=FALSE}
+plot_entropy_rat <- entropy %>% 
+  filter(dominance < 0.5) %>% 
+  ggplot(aes(dominance, rating)) +
+  geom_point(color = comp_color, aes(alpha = single_digit)) +
+  #geom_smooth(method = "lm", se = F, color = comp_color) +
+  plot_theme
+
+plot_entropy_qm <- entropy %>% 
+  filter(dominance < 0.5) %>% 
+  ggplot(aes(dominance, n_qm)) +
+  geom_point(aes(alpha = single_digit), color = response_colors["qm"]) +
+  #geom_smooth(method = "lm", se = F, color = response_colors["qm"]) +
+  plot_theme + 
+  theme(legend.position = "none")
+
+plot_entropy_oot <- entropy %>% 
+  filter(dominance < 0.5) %>% 
+  ggplot(aes(dominance, n_late)) +
+  geom_point(aes(alpha = single_digit), color = response_colors["late"]) +
+  #geom_smooth(method = "lm", se = F, color = response_colors["late"]) +
+  plot_theme + 
+  theme(legend.position = "none")
+
+plot_entropy_error <- entropy %>% 
+  filter(dominance < 0.5) %>% 
+  ggplot(aes(dominance, n_error)) +
+  geom_point(aes(alpha = single_digit), color = response_colors["error"]) +
+  #geom_smooth(method = "lm", se = F, color = response_colors["error"]) +
+  plot_theme + 
+  theme(legend.position = "none")
+
+plot_grid(plot_entropy_rat, plot_grid(plot_entropy_qm, plot_entropy_oot, plot_entropy_error, ncol = 1))
+
+entropy %>% arrange(-rating) %>% dplyr::select(question_clean, rating)
+```
+
+### entropy and response time
+
+```{r entropy-rt, }
+# create quantiles of dominance scores 
+n_quant = 10
+entropy <- entropy %>% 
+  mutate(dom_quantile = factor(ntile(dominance, n_quant)))
+
+groupsize <- entropy %>% 
+  group_by(dom_quantile) %>% 
+  count() %>% 
+  ungroup() %>% 
+  summarize(mean = mean(n)) %>% 
+  pull(mean)
+```
+
+I separate dominance into quantiles, and then examine response time distributions of items across these quantiles. I also plot average and standard deviations of response times across items as a function of dominance. 
+
+```{r entropy-rt-plot, include=TRUE, echo=FALSE, fig.width = 12, fig.height=8, warning=FALSE}
+cat("n quantiles = ", n_quant, "(average groupsize = ", groupsize, ")")
+
+plot_dom_density <- logs %>% 
+  left_join(entropy %>% dplyr::select(question_clean, dominance, dom_quantile), by = "question_clean") %>% 
+  filter(response == "error" & 
+           question_clean %in% unique(entropy$question_clean)) %>% 
+  # filter(dominance < 0.5) %>%
+  # # peaked distribution of rts is mostly driven by outlier group 
+  ggplot() + 
+  geom_density(aes(x = response_in_milliseconds, 
+                   fill = dom_quantile, 
+                   color = dom_quantile),
+               stat = "density", alpha = 0.2) + 
+  scale_fill_viridis_d(option = "magma") +
+  scale_color_viridis_d(option = "magma") +
+  plot_theme +
+  labs(title = "rt distributions per dominance quantile",
+       subtitle = paste("average group size =", round(groupsize, 2)),
+       fill = "quantile \n(lowest to highest \ndominance)",
+       color = "quantile \n(lowest to highest \ndominance)")
+  
+plot_dom_meanrt <- logs %>% 
+  left_join(entropy %>% dplyr::select(question_clean, dominance, dom_quantile), by = "question_clean") %>% 
+  filter(response == "error" & 
+           question_clean %in% unique(entropy$question_clean)) %>% 
+  group_by(question_clean) %>% 
+  summarise(single_digit = unique(single_digit), 
+            mean_rt = mean(response_in_milliseconds), 
+            dom = unique(dominance)) %>% 
+  ggplot(aes(x = dom, y = mean_rt)) +
+  geom_point(aes(color = single_digit), alpha = 0.4) + 
+  #geom_smooth(method = "lm", se = FALSE, color = "gray20") +
+  scale_color_viridis_d(option = "magma", begin = 0.8, end = 0.4) +
+  plot_theme + 
+  labs(x = "dominance", 
+       y = "mean rt (ms)", 
+       color = "single-digit")
+
+plot_dom_sdrt <- logs %>% 
+  left_join(entropy %>% dplyr::select(question_clean, dominance, dom_quantile), by = "question_clean") %>% 
+  filter(response == "error" & 
+           question_clean %in% unique(entropy$question_clean)) %>% 
+  group_by(question_clean) %>% 
+  summarise(single_digit = unique(single_digit), 
+            sd_rt = sd(response_in_milliseconds), 
+            dom = unique(dominance)) %>% 
+  ggplot(aes(x = dom, y = sd_rt)) +
+  geom_point(aes(color = single_digit), alpha = 0.4) + 
+  #geom_smooth(method = "lm", se = FALSE, color = "gray20") +
+  scale_color_viridis_d(option = "magma", begin = 0.8, end = 0.4) +
+  plot_theme +
+    labs(x = "dominance", 
+       y = "standard deviation of rt (ms)", 
+       color = "single-digit")
+
+plot_grid(plot_dom_density, plot_grid(plot_dom_meanrt + theme(legend.position = "none"), plot_dom_sdrt, ncol = 1, rel_heights = c(1, 1.1)), rel_widths = c(1, 0.8))
+```
+
+ideas for entropy:
+
+-   compute entropy separately by age group for the same item
+
+    -   possible relationships to look for: decreasing entropy with age (consistent with consolidation of error procedures) ; persistence of high dominance across ages (robust misconception?) ; disappearance of dominance with age (developmental phase error?)
+
+    -   interactions with rt?
+
+-   compute person-specific (or day-specific) entropy across items?
+
