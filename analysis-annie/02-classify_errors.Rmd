@@ -11,7 +11,8 @@ output:
 ---
 
 ```{r}
-load("~/research-collaboration/data/2026-quitting-error-types/set-predictions/results_2026_02-23/rdata/set_preds.RData")
+source(here::here("config.R"))
+load(cfg$paths$set_preds_file)
 ```
 
 ```{r}
@@ -92,4 +93,3 @@ ggplot(plot_data,
   theme_bw()
 
 ```
-

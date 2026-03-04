@@ -17,7 +17,8 @@ knitr::opts_chunk$set(message = FALSE,
 
 
 ```{r data, message=FALSE, include=FALSE}
-source("~/research-collaboration/2026-quitting-error-types/analysis-annie/scripts/00-setup_environment.R")
+source(here::here("config.R"))
+source(here("analysis-annie/scripts/00-setup_environment.R"))
 source(here("analysis-annie/scripts/01-load_data.R"))
 ```
 
@@ -39,13 +40,11 @@ I also make the table `id_strings`, which gives, per `question_clean`, the uniqu
 
 I remove:
 
--   items with less than 200 observations\
--   learners with less than 100 observations\
+-   items with fewer than `min_item_count` observations (default in `config.R`: 200)\
+-   learners with fewer than `min_play_count` observations (default in `config.R`: 200)\
 -   learners in grades 1 and 2
 
 ```{r data-clean, message=FALSE, include=FALSE}
-min_play_count <- 200
-min_item_count <- 200
 source(here("analysis-annie/scripts/02-clean_data.R"))
 ```
 
@@ -506,6 +505,4 @@ ideas for entropy:
     -   interactions with rt?
 
 -   compute person-specific (or day-specific) entropy across items?
-
-
 

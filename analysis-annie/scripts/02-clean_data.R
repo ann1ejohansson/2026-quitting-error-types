@@ -1,17 +1,22 @@
 # exclusion parameters
-min_item_count <- 200
-min_play_count <- 200
+if (!exists("cfg")) {
+  source(here::here("config.R"))
+}
+
+if (!exists("min_item_count")) {
+  min_item_count <- cfg$analysis$min_item_count
+}
+
+if (!exists("min_play_count")) {
+  min_play_count <- cfg$analysis$min_play_count
+}
 
 if (!exists("logs")) {
   stop("run script 01-load-data.R first")
 }
 
-if (!exists("min_item_count")) {
-  stop("need to define min_item_count")
-}
-
-if (!exists("min_play_count")) {
-  stop("need to define min_play_count")
+if (!exists("id_split")) {
+  stop("run script 01-load-data.R first (id_split is missing)")
 }
 
 # clean item data ----
@@ -75,7 +80,7 @@ items <- items %>%
   mutate(space_after_q = id %in% space_after_q_v)
 
 save(list = c("duplicate_json", "space_after_q_v"),
-     file = "~/research-collaboration/data/2026-quitting-error-types/data-checks/check-json-strings.RData")
+     file = cfg$paths$check_json_strings_file)
 rm(duplicate_json, space_after_q_v)
 
 # clean log data ----
@@ -84,7 +89,7 @@ logs <- logs %>%
   left_join(items %>% select(id, question_clean, first, second),
             by = c("item_id" = "id")) %>%
   # training set
-  filter(user_id %in% id_train) %>%
+  filter(user_id %in% id_split) %>%
   # factor response types
   mutate(response = factor(
     ifelse(answer == "…", "late",

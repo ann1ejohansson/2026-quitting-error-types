@@ -50,11 +50,12 @@ conflict_prefer("select", "dplyr")
 
 # set working dir ----
 here::i_am("analysis-annie/scripts/00-setup_environment.R")
+source(here::here("config.R"))
 
 rm(installed, packages)
 
 # directories
-folders <- c("models", "figures", "tables")
+folders <- cfg$project$output_dirs
 
 # Loop through each folder
 for (folder in folders) {
@@ -97,4 +98,3 @@ plot_theme <- theme_bw(12) + theme(
   legend.text = element_text(size = 14),
   strip.text = element_text(size = 12, color = "gray20"),
   strip.background = element_rect(fill = "gray80", color = "gray80"))
-

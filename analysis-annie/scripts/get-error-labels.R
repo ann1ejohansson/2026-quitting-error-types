@@ -1,5 +1,10 @@
-for(file in list.files(here("functions/error_categories/"))) {
-  source(paste0(here("functions/error_categories/", file)))
+if (!exists("cfg")) {
+  source(here::here("config.R"))
+}
+
+error_categories_dir <- here::here(cfg$paths$error_categories_dir)
+for (file in list.files(error_categories_dir, full.names = TRUE)) {
+  source(file)
 }
 
 correct_logs <- logs %>% filter(response == "cor")

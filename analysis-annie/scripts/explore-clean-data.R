@@ -1,3 +1,7 @@
+if (!exists("cfg")) {
+  source(here::here("config.R"))
+}
+
 source(here::here("exploration-annie/00-setup.R"))
 source(here::here("exploration-annie/00-data.R"))
 
@@ -84,14 +88,14 @@ n_rem_grade <- logs %>%
   filter(grade < 3) %>% 
   count()
 
-n_rem_items <- 200
+n_rem_items <- cfg$analysis$min_item_count
 rem_items <- logs %>% 
   group_by(question_clean) %>% 
   count() %>% 
   filter(n < n_rem_items) %>% 
   pull(question_clean)
 
-n_rem_user <- 200
+n_rem_user <- cfg$analysis$min_play_count
 rem_users <- logs %>% 
   group_by(user_id) %>% 
   count() %>% 

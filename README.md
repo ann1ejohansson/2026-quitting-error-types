@@ -30,6 +30,18 @@ I start by exploring (a training subset of) multiplication data from 2021 to 202
 -  indicators: how to classify cognitive / non-cognitive error types?
 -  item characteristics and error systematicity
 
+### configuration
+
+all run settings are centralized in `config.R` at the project root.
+
+this includes:
+
+- hard-coded input/output paths
+- data split (`train` / `test`)
+- filtering thresholds (e.g., `min_item_count`, `min_play_count`)
+
+edit `config.R` locally to match your own data location.
+
  
  
  
