@@ -3,6 +3,8 @@
 **Annie Johansson, Maarten van der Velde, Abe Hofman**\
 **2026**
 
+[meeting notes & updates](https://docs.google.com/document/d/1m1JwisaO9PHk7jxXOZMjo4v4Ndb9Dxwdpc_kEoT5AX0/edit?usp=sharing)
+
 this will be a replication and extension of the quitting effect (seq. errors -> quitting), 
 interacted with error type, and explored across math garden and memory lab datasets. 
 
